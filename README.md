@@ -1,1 +1,1 @@
-# animate
+# Animate (using JS)
