@@ -1,4 +1,4 @@
-mconst vector = {
+const vector = {
     define: (from, to) => {
         if (!from || !to) {
             throw new Error('Invalid input for vector definition');
