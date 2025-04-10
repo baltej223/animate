@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Phasor Visualization</title>
+    <style>
+        canvas {
+            background: #111;
+            display: block;
+            margin: auto;
+            border: 2px solid #333;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="phasorCanvas" width="800" height="800"></canvas>
+
+    <script>
+        // Include the corrected phasor object
+        const phasor = {
+            define() {
+                return {
+                    timeline: [],
+                    currentIndex: 0,
+                };
+            },
+
+            phasorMotion(phasorObj, keyframes) {
+                let timeline = [];
+                let now = Date.now();
+                let lastEndAngle = 0;
+                let lastOmega = 0;
+                let totalTime = 0;
+
+                for (let frame of keyframes) {
+                    let entry = {};
+                    entry.startTime = now + totalTime;
+                    entry.duration = frame.duration ?? frame.runtime ?? 1000;
+                    entry.length = frame.length ?? 0;
+                    entry.type = "constant";
+                    entry.omega = frame.omega ?? lastOmega;
+                    entry.phaseDiff = frame.phaseDiff === "prev"
+                        ? lastEndAngle
+                        : (frame.phaseDiff ?? 0);
+
+                    if (frame.angular_acceleration === true) {
+                        entry.type = "accelerating";
+
+                        entry.fromAngle =
+                            frame.fromAngle === "prev"
+                                ? lastEndAngle
+                                : typeof frame.fromAngle === "string" && frame.fromAngle.startsWith("prev +")
+                                    ? lastEndAngle + parseFloat(frame.fromAngle.split("+")[1])
+                                    : parseFloat(frame.fromAngle);
+
+                        entry.toAngle =
+                            frame.toAngle === "prev"
+                                ? lastEndAngle
+                                : typeof frame.toAngle === "string" && frame.toAngle.startsWith("prev +")
+                                    ? lastEndAngle + parseFloat(frame.toAngle.split("+")[1])
+                                    : parseFloat(frame.toAngle);
+
+                        if (isNaN(entry.fromAngle) || isNaN(entry.toAngle)) {
+                            throw new Error(`Invalid angles: from=${frame.fromAngle}, to=${frame.toAngle}`);
+                        }
+
+                        entry.angleDiff = entry.toAngle - entry.fromAngle;
+                        const durationSec = entry.duration / 1000;
+                        entry.alpha = (2 * entry.angleDiff) / (durationSec ** 2);
+                        entry.omega = (entry.angleDiff / durationSec) - (0.5 * entry.alpha * durationSec);
+                    }
+
+                    timeline.push(entry);
+                    totalTime += entry.duration;
+                    lastOmega = entry.omega;
+
+                    lastEndAngle = (entry.type === "accelerating")
+                        ? entry.toAngle
+                        : (entry.omega * (entry.duration / 1000)) + entry.phaseDiff;
+                }
+
+                phasorObj.timeline = timeline;
+            },
+
+            read(phasorObj, time = Date.now()) {
+                if (!phasorObj.timeline || phasorObj.timeline.length === 0) {
+                    return { x: 0, y: 0, angle: 0 };
+                }
+
+                const currentFrame = phasorObj.timeline.find((entry, idx) => {
+                    const elapsed = time - entry.startTime;
+                    const withinFrame = elapsed >= 0 && elapsed <= entry.duration;
+                    if (withinFrame) phasorObj.currentIndex = idx;
+                    return withinFrame;
+                }) || phasorObj.timeline[phasorObj.timeline.length - 1];
+
+                if (!currentFrame) return { x: 0, y: 0, angle: 0 };
+
+                const elapsed = time - currentFrame.startTime;
+                const t = elapsed / 1000;
+                let angle;
+
+                if (currentFrame.type === "accelerating") {
+                    angle = currentFrame.fromAngle + currentFrame.omega * t + 0.5 * currentFrame.alpha * t * t;
+                } else {
+                    angle = currentFrame.phaseDiff + currentFrame.omega * t;
+                }
+
+                return {
+                    x: Math.cos(angle) * (currentFrame.length ?? 1),
+                    y: Math.sin(angle) * (currentFrame.length ?? 1),
+                    angle: angle,
+                };
+            }
+        };
+
+        // Setup phasor and motion
+        const _phasor = phasor.define();
+        phasor.phasorMotion(_phasor, [
+            { length: 80, omega: -1.5, phaseDiff: 0, duration: 3000 },
+            { length: 60, angular_acceleration: true, fromAngle: "prev", toAngle: "prev + 300", runtime: 2000 },
+            { length: 60, omega: 3, phaseDiff: "prev", duration: 3000 },
+            { length: 50, angular_acceleration: true, fromAngle: "prev + 50", toAngle: 500, runtime: 3000 },
+            { length: 40, omega: 0, phaseDiff: Math.PI, duration: 2000 }
+        ]);
+
+        // Canvas setup
+        const canvas = document.getElementById("phasorCanvas");
+        const ctx = canvas.getContext("2d");
+        const center = { x: canvas.width / 2, y: canvas.height / 2 };
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Get phasor state
+            const { x, y, angle } = phasor.read(_phasor);
+
+            // Draw axis
+            ctx.strokeStyle = "#333";
+            ctx.beginPath();
+            ctx.moveTo(center.x, 0);
+            ctx.lineTo(center.x, canvas.height);
+            ctx.moveTo(0, center.y);
+            ctx.lineTo(canvas.width, center.y);
+            ctx.stroke();
+
+            // Draw phasor line
+            ctx.strokeStyle = "#0ff";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(center.x, center.y);
+            ctx.lineTo(center.x + x, center.y - y); // y axis flipped
+            ctx.stroke();
+
+            // Draw dot
+            ctx.fillStyle = "#f0f";
+            ctx.beginPath();
+            ctx.arc(center.x + x, center.y - y, 6, 0, 2 * Math.PI);
+            ctx.fill();
+
+            requestAnimationFrame(draw);
+        }
+
+        draw();
+    </script>
+</body>
+</html>
