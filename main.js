@@ -189,71 +189,59 @@ const phasor = {
         };
     },
 
-    phasorMotion(phasorObj, keyframes) {
+    phasorMotion(phasorObj, keyframes, startTime=performance.now()) {
         let timeline = [];
-        let now = Date.now();
-        let lastEndAngle = 0;
-        let lastOmega = 0;
-        let totalTime = 0;
-
+        let now = startTime; // Use explicit base time instead of Date.now()
+        phasorObj.startBaseTime = now; // Store this as a reference
+    
+        let lastEndAngle = 0, lastOmega = 0, totalTime = 0;
+    
         for (let frame of keyframes) {
             let entry = {};
-            entry.startTime = now + totalTime;
+            entry.startTime = totalTime; // Changed: relative time in ms
             entry.duration = frame.duration ?? frame.runtime ?? 1000;
             entry.length = frame.length ?? 0;
             entry.type = "constant";
             entry.omega = frame.omega ?? lastOmega;
-
             entry.phaseDiff = frame.phaseDiff === "prev" ? lastEndAngle : (frame.phaseDiff ?? 0);
-
-            if (frame.angular_acceleration === true) {
+    
+            if (frame.angular_acceleration) {
                 entry.type = "accelerating";
-
-                entry.fromAngle =
-                    frame.fromAngle === "prev"
-                        ? lastEndAngle
-                        : typeof frame.fromAngle === "string" && frame.fromAngle.startsWith("prev +")
-                            ? lastEndAngle + parseFloat(frame.fromAngle.split("+")[1])
-                            : parseFloat(frame.fromAngle);
-
-                entry.toAngle =
-                    frame.toAngle === "prev"
-                        ? lastEndAngle
-                        : typeof frame.toAngle === "string" && frame.toAngle.startsWith("prev +")
-                            ? lastEndAngle + parseFloat(frame.toAngle.split("+")[1])
-                            : parseFloat(frame.toAngle);
-
-                if (isNaN(entry.fromAngle) || isNaN(entry.toAngle)) {
-                    throw new Error(`Invalid angles: from=${frame.fromAngle}, to=${frame.toAngle}`);
-                }
-
+                entry.fromAngle = typeof frame.fromAngle === "string" && frame.fromAngle.includes("prev")
+                    ? lastEndAngle + (parseFloat(frame.fromAngle.split("+")[1]) || 0)
+                    : parseFloat(frame.fromAngle);
+                entry.toAngle = typeof frame.toAngle === "string" && frame.toAngle.includes("prev")
+                    ? lastEndAngle + (parseFloat(frame.toAngle.split("+")[1]) || 0)
+                    : parseFloat(frame.toAngle);
+                let t = entry.duration / 1000;
                 entry.angleDiff = entry.toAngle - entry.fromAngle;
-                let durationSec = entry.duration / 1000;
-
-                entry.alpha = (2 * entry.angleDiff) / (durationSec ** 2);
-                entry.omega = (entry.angleDiff / durationSec) - (0.5 * entry.alpha * durationSec);
+                entry.alpha = (2 * entry.angleDiff) / (t ** 2);
+                entry.omega = (entry.angleDiff / t) - (0.5 * entry.alpha * t);
             }
-
+    
             timeline.push(entry);
             totalTime += entry.duration;
             lastOmega = entry.omega;
-
             lastEndAngle = (entry.type === "accelerating")
                 ? entry.toAngle
-                : (entry.omega * (entry.duration / 1000)) + entry.phaseDiff;
+                : entry.phaseDiff + (entry.omega * entry.duration / 1000);
         }
-
+    
         phasorObj.timeline = timeline;
-    },
+        phasorObj.startTime = startTime; // Save this for future reads
+    },    
 
     read: (phasorObj, time) => {
-        if (time == undefined){
-            time = Date.now();
+        if (time == undefined) {
+            time = performance.now(); // always relative to performance.now()
         }
         if (!phasorObj.timeline || phasorObj.timeline.length === 0) return { x: 0, y: 0, angle: 0 };
     
+        const base = phasorObj.startTime ?? performance.now();
+        const relativeTime = time - base;
+    
         let currentFrame = phasorObj.timeline.find((entry, idx) => {
-            let elapsed = time - entry.startTime;
+            let elapsed = relativeTime - (entry.startTime - base);
             let withinFrame = elapsed >= 0 && elapsed <= entry.duration;
             if (withinFrame) phasorObj.currentIndex = idx;
             return withinFrame;
@@ -261,25 +249,19 @@ const phasor = {
     
         if (!currentFrame) return { x: 0, y: 0, angle: 0 };
     
-        let elapsed = time - currentFrame.startTime;
-        let angle = 0;
+        let elapsed = relativeTime - (currentFrame.startTime - base);
+        let t = elapsed / 1000;
     
-        if (currentFrame.type === "accelerating") {
-            let t = elapsed / 1000;
-            angle = currentFrame.fromAngle + currentFrame.omega * t + 0.5 * currentFrame.alpha * t * t;
-        } else {
-            let t = elapsed / 1000;
-            console.log("elapsed", elapsed);
-            angle = currentFrame.phaseDiff + currentFrame.omega * t;
-        }
-
-        console.log(angle, currentFrame);
+        let angle = currentFrame.type === "accelerating"
+            ? currentFrame.fromAngle + currentFrame.omega * t + 0.5 * currentFrame.alpha * t * t
+            : currentFrame.phaseDiff + currentFrame.omega * t;
+    
         return {
             X: Math.cos(angle) * (currentFrame.length ?? 1),
             Y: Math.sin(angle) * (currentFrame.length ?? 1),
             angle: angle,
         };
-    }    
+    }            
 };
 
 
@@ -521,8 +503,6 @@ const instantaneous = {
                 callback(left, top);
             }
         }
-        
-
         requestAnimationFrame(animate);
     }
 };
