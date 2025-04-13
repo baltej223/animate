@@ -1,339 +1,75 @@
+import {vector} from "./vector.js";
+import {useState, useEffect} from "./states.js";
+import {phasor} from "./phasors.js"
+import "./helpers.js";
+
 const docs = "";
-const vector = {
-    define: (from, to) => {
-        if (!from || !to) {
-            throw new Error('Invalid input for vector definition');
-        }
-        return { "type": "vector", "start": [from[0], from[1]], "end": [to[0], to[1]] };
-    },
-    length: (vector) => {
-        if (!vector || !vector.start || !vector.end) {
-            throw new Error('Invalid vector input for length calculation');
-        }
-        return Math.sqrt((vector.end[0] - vector.start[0]) * (vector.end[0] - vector.start[0]) + (vector.end[1] - vector.start[1]) * (vector.end[1] - vector.start[1]));
-    },
-    xlength: (vector) => {
-        if (!vector || !vector.start || !vector.end) {
-            throw new Error('Invalid vector input for xlength calculation');
-        }
-        return Math.abs(vector.end[0] - vector.start[0]);
-    },
-    ylength: (vector) => {
-        if (!vector || !vector.start || !vector.end) {
-            throw new Error('Invalid vector input for ylength calculation');
-        }
-        return Math.abs(vector.end[1] - vector.start[1]);
-    },
-    add: (vector1, vector2) => {
-        if (!vector1 || !vector2 || !vector1.start || !vector1.end || !vector2.start || !vector2.end) {
-            throw new Error('Invalid input for vector addition');
-        }
-        return { "start": [vector1.start[0] + vector2.start[0], vector1.start[1] + vector2.start[1]], "end": [vector1.end[0] + vector2.end[0], vector1.end[1] + vector2.end[1]] };
-    },
-    multiply: (vector, constant) => {
-        if (!vector || !vector.start || !vector.end) {
-            throw new Error('Invalid vector input for multiplication');
-        }
-        return { "start": [vector.start[0] * constant, vector.start[1] * constant], "end": [vector.end[0] * constant, vector.end[1] * constant] };
-    },
-    normalise: (vect) => {
-        if (!vect || !vect.start || !vect.end) {
-            throw new Error('Invalid vector input for normalisation');
-        }
-        return { "start": [vect.start[0] / vector.length(vect), vect.start[1] / vector.length(vect)], "end": [vect.end[0] / vector.length(vect), vect.end[1] / vector.length(vect)] };
-    },
-    dot: (vector1, vector2) => {
-        if (!vector1 || !vector2 || !vector1.start || !vector1.end || !vector2.start || !vector2.end) {
-            throw new Error('Invalid input for dot product calculation');
-        }
-        return (vector1.end[0] - vector1.start[0]) * (vector2.end[0] - vector2.start[0]) + (vector1.end[1] - vector1.start[1]) * (vector2.end[1] - vector2.start[1]);
-    },
-    cross: (vector1, vector2) => {
-        if (!vector1 || !vector2 || !vector1.start || !vector1.end || !vector2.start || !vector2.end) {
-            throw new Error('Invalid input for cross product calculation');
-        }
-        return (vector1.end[0] - vector1.start[0]) * (vector2.end[1] - vector2.start[1]) - (vector1.end[1] - vector1.start[1]) * (vector2.end[0] - vector2.start[0]);
-    },
-    angle: (vector1, vector2) => {
-        if (!vector1 || !vector2 || !vector1.start || !vector1.end || !vector2.start || !vector2.end) {
-            throw new Error('Invalid input for angle calculation');
-        }
-        return Math.atan2(
-            vector.cross(vector1, vector2),
-            vector.dot(vector1, vector2)
-        );
 
-    },
-    subtract: (vector1, vector2) => {
-        if (!vector1 || !vector2 || !vector1.start || !vector1.end || !vector2.start || !vector2.end) {
-            throw new Error('Invalid input for vector subtraction');
-        }
-        return { "start": [vector1.start[0] - vector2.start[0], vector1.start[1] - vector2.start[1]], "end": [vector1.end[0] - vector2.end[0], vector1.end[1] - vector2.end[1]] };
-    },
-    divide: (vector, constant) => {
-        if (!vector || !vector.start || !vector.end) {
-            throw new Error('Invalid vector input for division');
-        }
-        return { "start": [vector.start[0] / constant, vector.start[1] / constant], "end": [vector.end[0] / constant, vector.end[1] / constant] };
-    },
-    angleWithXaxis: (vector) => {
-        if (!vector || !vector.start || !vector.end) {
-            throw new Error('Invalid vector input for angle calculation');
-        }
-        return Math.atan2(vector.end[1] - vector.start[1], vector.end[0] - vector.start[0]);
-
-    },
-    angleWithYaxis: (vector) => {
-        if (!vector || !vector.start || !vector.end) {
-            throw new Error('Invalid vector input for angle calculation');
-        }
-        return Math.atan2(vector.end[0] - vector.start[0], vector.end[1] - vector.start[1]);
-
-    },
-    reverse: (vector) => {
-        if (!vector || !vector.start || !vector.end) {
-            throw new Error('Invalid vector input for reversal');
-        }
-        return { "start": [vector.end[0], vector.end[1]], "end": [vector.start[0], vector.start[1]] };
-    },
-    combine: (...vectors) => {
-        if (!vectors || vectors.length === 0) {
-            throw new Error("No vectors provided for combination.");
-        }
-
-        let netStart = [0, 0];
-        let netEnd = [0, 0];
-
-        vectors.forEach(vec => {
-            if (!vec || !vec.start || !vec.end) {
-                throw new Error("Invalid vector in combination.");
-            }
-
-            netStart[0] += vec.start[0];
-            netStart[1] += vec.start[1];
-            netEnd[0] += vec.end[0];
-            netEnd[1] += vec.end[1];
-        });
-
-        return { start: netStart, end: netEnd };
-    }
-};
-////////////////////////////////////////
-// Implementation of states in pure JS.
-// Code copied from baltej223/vanillaStates
-// Checkout https://github.com/baltej223/VanillaStates/
-
-window.ids = {};
-window.changeHooks = {};
-let idCounter = 0;
-
-function useEffect(fn, dependencies) {
-    if (typeof fn !== "function" || !Array.isArray(dependencies)) {
-        throw new Error("BAD PARAMETERS: useEffect requires a function and an array.");
-    }
-
-    dependencies.forEach((getStateFn) => {
-        if (typeof getStateFn !== "function") {
-            throw new Error("BAD PARAMETERS: Dependencies must be numbers.");
-        }
-        let id = getStateFn("get-id");
-        window.changeHooks[id] = fn;
-    });
-
-    dependencies.forEach((getStateFn) => {
-        let id = getStateFn("This is passed to get the id of the state");
-        if (window.ids[id] !== undefined) {
-            fn(window.ids[id]);
-        }
-    });
-}
-
-function handleChanges(id) {
-    const fnToRun = window.changeHooks[id];
-    if (typeof fnToRun === "function") {
-        fnToRun(window.ids[id]);
-    }
-}
-
-function useState(initialValue) {
-    let id = idCounter++;
-    window.ids[id] = initialValue;
-
-
-    const setState = (updateValueFn) => {
-        if (typeof updateValueFn !== "function") {
-            throw new Error("State updater must be a function!");
-        }
-
-        window.ids[id] = updateValueFn(window.ids[id]);
-        handleChanges(id);
-    };
-    const getter = (get_id) => {
-        if (get_id == undefined) {
-            return window.ids[id];
-        }
-        else {
-            return id;
-        }
-    }
-    return [getter, setState, id];
-
-}
-////////////////////////////////////////
-
-const phasor = {
-    define() {
-        return {
-            timeline: [],
-            currentIndex: 0,
-        };
-    },
-
-    phasorMotion(phasorObj, keyframes, startTime=performance.now()) {
-        let timeline = [];
-        let now = startTime; // Use explicit base time instead of Date.now()
-        phasorObj.startBaseTime = now; // Store this as a reference
-    
-        let lastEndAngle = 0, lastOmega = 0, totalTime = 0;
-    
-        for (let frame of keyframes) {
-            let entry = {};
-            entry.startTime = totalTime; // Changed: relative time in ms
-            entry.duration = frame.duration ?? frame.runtime ?? 1000;
-            entry.length = frame.length ?? 0;
-            entry.type = "constant";
-            entry.omega = frame.omega ?? lastOmega;
-            entry.phaseDiff = frame.phaseDiff === "prev" ? lastEndAngle : (frame.phaseDiff ?? 0);
-    
-            if (frame.angular_acceleration) {
-                entry.type = "accelerating";
-                entry.fromAngle = typeof frame.fromAngle === "string" && frame.fromAngle.includes("prev")
-                    ? lastEndAngle + (parseFloat(frame.fromAngle.split("+")[1]) || 0)
-                    : parseFloat(frame.fromAngle);
-                entry.toAngle = typeof frame.toAngle === "string" && frame.toAngle.includes("prev")
-                    ? lastEndAngle + (parseFloat(frame.toAngle.split("+")[1]) || 0)
-                    : parseFloat(frame.toAngle);
-                let t = entry.duration / 1000;
-                entry.angleDiff = entry.toAngle - entry.fromAngle;
-                entry.alpha = (2 * entry.angleDiff) / (t ** 2);
-                entry.omega = (entry.angleDiff / t) - (0.5 * entry.alpha * t);
-            }
-    
-            timeline.push(entry);
-            totalTime += entry.duration;
-            lastOmega = entry.omega;
-            lastEndAngle = (entry.type === "accelerating")
-                ? entry.toAngle
-                : entry.phaseDiff + (entry.omega * entry.duration / 1000);
-        }
-    
-        phasorObj.timeline = timeline;
-        phasorObj.startTime = startTime; // Save this for future reads
-    },    
-
-    read: (phasorObj, time) => {
-        if (time == undefined) {
-            time = performance.now(); // always relative to performance.now()
-        }
-        if (!phasorObj.timeline || phasorObj.timeline.length === 0) return { x: 0, y: 0, angle: 0 };
-    
-        const base = phasorObj.startTime ?? performance.now();
-        const relativeTime = time - base;
-    
-        let currentFrame = phasorObj.timeline.find((entry, idx) => {
-            let elapsed = relativeTime - (entry.startTime - base);
-            let withinFrame = elapsed >= 0 && elapsed <= entry.duration;
-            if (withinFrame) phasorObj.currentIndex = idx;
-            return withinFrame;
-        }) || phasorObj.timeline[phasorObj.timeline.length - 1];
-    
-        if (!currentFrame) return { x: 0, y: 0, angle: 0 };
-    
-        let elapsed = relativeTime - (currentFrame.startTime - base);
-        let t = elapsed / 1000;
-    
-        let angle = currentFrame.type === "accelerating"
-            ? currentFrame.fromAngle + currentFrame.omega * t + 0.5 * currentFrame.alpha * t * t
-            : currentFrame.phaseDiff + currentFrame.omega * t;
-    
-        return {
-            X: Math.cos(angle) * (currentFrame.length ?? 1),
-            Y: Math.sin(angle) * (currentFrame.length ?? 1),
-            angle: angle,
-        };
-    }            
-};
-
-
-function objectify(element, qualities) {
+// Core functions
+function objectify(_plane, element, qualities) {
     (typeof element != "object") || (typeof qualities != "object") ? new Error("parameters of objectify not recognized as an object") : null;
     // try{
     // }catch(e){
     //     console.log("Some Error Occured at the time of object defining.");
     // }
-    var [ele, setElement] = useState({ element: element, position: {}, rotation: {}, direction: {} });
+    let width = element.style.width;
+    let height = element.style.height;
+    var [ele, setElement] = useState({ element: element, plane: _plane, definers: { position: {}, rotation: {}, direction: {}, cm: { X: (parseFloat(height) / 2), Y: (parseFloat(width) / 2) } } });
 
-    return { "object": element, "qualities": qualities, getter: ele, updater: setElement };
+    return { object: element, qualities: qualities, getter: ele, updater: setElement };
 }
 
 
 const anim = {
-    accelerate: (object, acceleration, directionVector, fortime, fromPoint = { "x": 0, "y": 0 }, callback = () => { }) => {
+    accelerate: (object, acceleration, directionVector, fortime, fromPoint = { x: 0, y: 0 }, callback = () => { }) => {
         if (!object || !directionVector || !fortime) {
             throw new Error('Invalid input for acceleration calculation');
         }
-        var direction = vector.normalise(directionVector);
 
-        var accelerationVector = vector.multiply(direction, acceleration);
+        const direction = vector.normalise(directionVector);
+        const accelerationVector = vector.multiply(direction, acceleration);
 
-        var xacc = vector.xlength(accelerationVector);
-        var yacc = vector.ylength(accelerationVector);
+        const xacc = vector.displacement(accelerationVector).x;
+        const yacc = vector.displacement(accelerationVector).y;
 
-        var postive_negative;
-        if (directionVector.start[0] >= directionVector.end[0] && directionVector.start[1] >= directionVector.end[1]) {
+        let startTime = null;
+        let stopid = null;
 
-            postive_negative = -1;
-        } else {
-
-            postive_negative = 1;
-        }
-        var startTime = null;
         function animate(timestamp) {
-
             if (startTime === null) {
                 startTime = timestamp;
             }
 
             let progress = timestamp - startTime;
+            let t = progress / 1000; // seconds
 
-            const multiplier = postive_negative === 1 ? 1 : -1;
+            let dx = 0.5 * xacc * t * t;
+            let dy = 0.5 * yacc * t * t;
 
-            X = object.object.style.left = 0.5 * xacc * multiplier * (progress / 1000) ** 2 + fromPoint.x + "px";
+            let X = fromPoint.x + dx;
+            let Y = fromPoint.y + dy;
 
-            Y = object.object.style.top = 0.5 * yacc * multiplier * (progress / 1000) ** 2 + fromPoint.y + "px";
+            object.object.style.left = X + "px";
+            object.object.style.top = Y + "px";
 
             object.updater((obj) => {
-                obj.position["X"] = X;
-                obj.position["Y"] = Y;
-                obj.direction = directionVector;
+                obj.definers.position["X"] = X;
+                obj.definers.position["Y"] = Y;
+                obj.definers.direction = directionVector;
                 return obj;
             });
 
-
             if (progress < fortime) {
-                var stopid = requestAnimationFrame(animate);
-            }
-            else {
+                stopid = requestAnimationFrame(animate);
+            } else {
                 cancelAnimationFrame(stopid);
-                let left = Math.round(object.object.style.left.replace("px", ""));
-                let top = Math.round(object.object.style.top.replace("px", ""));
-                callback(left, top);
+                callback(Math.round(X), Math.round(Y));
             }
         }
 
-        requestAnimationFrame(animate);
-
+        stopid = requestAnimationFrame(animate);
     },
+
     velocity: (object, velocity, directionVector, fortime, fromPoint = { "x": 0, "y": 0 }, callback = () => { }) => {
 
         if (!object || !directionVector || !fortime) {
@@ -344,37 +80,29 @@ const anim = {
 
         let velocityVector = vector.multiply(direction, velocity);
 
-        let postive_negative;
-
-        if (directionVector.start[0] >= directionVector.end[0] && directionVector.start[1] >= directionVector.end[1]) {
-
-            postive_negative = -1;
-        } else {
-
-            postive_negative = 1;
-        }
-
-        let xvelocity = vector.xlength(velocityVector);
-        let yvelocity = vector.ylength(velocityVector);
+        let xvelocity = vector.displacement(velocityVector).x;
+        let yvelocity = vector.displacement(velocityVector).y;
         let startTime = null;
 
         function animate(timestamp) {
-
             if (startTime === null) {
-
                 startTime = timestamp;
             }
-
             let progress = timestamp - startTime;
+            let t = progress / 1000; // seconds
 
-            const multiplier = postive_negative === 1 ? 1 : -1;
+            let dx = (progress / 1000) * xvelocity;
+            let dy = (progress / 1000) * yvelocity;
 
-            object.object.style.left = (progress / 1000) * multiplier * xvelocity + fromPoint.x + "px";
-            object.object.style.top = (progress / 1000) * multiplier * yvelocity + fromPoint.y + "px";
+            let X = fromPoint.x + dx;
+            let Y = fromPoint.y + dy;
+
+            object.object.style.left = X + "px";
+            object.object.style.top = Y + "px";
 
             object.updater((obj) => {
-                obj.position["X"] = X;
-                obj.position["Y"] = Y;
+                obj.definers.position["X"] = X;
+                obj.definers.position["Y"] = Y;
                 return obj;
             });
 
@@ -445,64 +173,161 @@ const anim = {
     }
 }
 
-Object.prototype.draw = function (color) {
-    anim.drawVector(this, color)
-    return this;
-}
 
-Object.prototype.reverse = function () {
-    return vector.reverse(this);;
-}
 const instantaneous = {
-    accelaration: (object, acceleration, _phasor, fortime, fromPoint = { x: 0, y: 0 }, callback = () => { }) => {
+    acceleration: (object, acceleration, _phasor, fortime, fromPoint = { x: 0, y: 0 }, callback = () => { }) => {
         if (!object || !_phasor || !fortime) {
             throw new Error('Invalid input for acceleration calculation');
         }
 
-        let startTime = null; // Move this outside the animation function
+        let startTime = null;
+        let lastFrameTime = null;
+
+        let velocity = { x: 0, y: 0 };
+        let position = { x: fromPoint.x, y: fromPoint.y };
+
+        function animate(timestamp) {
+            if (startTime === null) {
+                startTime = timestamp;
+                lastFrameTime = timestamp;
+            }
+
+            let progress = timestamp - startTime;
+            let deltaTime = (timestamp - lastFrameTime) / 1000; // In seconds
+            lastFrameTime = timestamp;
+
+            // Get current phasor direction
+            const phasorReading = phasor.read(_phasor, timestamp);
+            let direction = vector.define([0, 0], [phasorReading.X, phasorReading.Y]);
+            direction = vector.normalise(direction);
+
+            object.updater((obj) => {
+                obj.direction = direction;
+                return obj;
+            });
+
+            // Get acceleration vector in direction of phasor
+            direction = obj.getter().direction;
+            let accVec = vector.multiply(direction, acceleration);
+
+            // Accumulate velocity
+            velocity.x += accVec.end[0] * deltaTime;
+            velocity.y += accVec.end[1] * deltaTime;
+
+            // Update position
+            position.x += velocity.x * deltaTime;
+            position.y += velocity.y * deltaTime;
+
+            // Move object on screen
+            object.object.style.left = position.x + "px";
+            object.object.style.top = position.y + "px";
+
+            // Update object data
+            object.updater((obj) => {
+                obj.definers.position["X"] = position.x;
+                obj.definers.position["Y"] = position.y;
+                obj.velocity = { ...velocity };
+                obj.direction = direction;
+                return obj;
+            });
+
+            if (progress < fortime) {
+                requestAnimationFrame(animate);
+            } else {
+                callback(Math.round(position.x), Math.round(position.y));
+            }
+        }
+
+        requestAnimationFrame(animate);
+    },
+    velocity: (object, velocity, _phasor, fortime, fromPoint = { x: 0, y: 0 }, callback = () => { }) => {
+        if (!object || !_phasor || !fortime) {
+            throw new Error('Invalid input for velocity calculation');
+        }
+
+        let startTime = null;
 
         function animate(timestamp) {
             if (startTime === null) {
                 startTime = timestamp;
             }
-        
+
             let progress = timestamp - startTime;
-        
-            // Get time-specific phasor reading
+
             const phasorReading = phasor.read(_phasor, startTime + progress);
-        
-            // Create direction vector from (0,0) to phasor endpoint
+
             let direction = vector.define([0, 0], [phasorReading.X, phasorReading.Y]);
-            direction = vector.normalise(direction);
-        
-            let accelerationVector = vector.multiply(direction, acceleration);
-        
-            let xacc = vector.xlength(accelerationVector);
-            let yacc = vector.ylength(accelerationVector);
-        
-            // Calculate new position based on time and acceleration vector
-            let X = 0.5 * xacc * (progress / 1000) ** 2 + fromPoint.x;
-            let Y = 0.5 * yacc * (progress / 1000) ** 2 + fromPoint.y;
-        
-            // Move object on screen
+            let directionVector = vector.normalise(direction);
+
+            let velocityVector = vector.multiply(directionVector, velocity);
+
+            let xvelocity = vector.xlength(velocityVector);
+            let yvelocity = vector.ylength(velocityVector);
+
+            var X = (progress / 1000) * xvelocity + fromPoint.x;
+            var Y = (progress / 1000) * yvelocity + fromPoint.y;
+
             object.object.style.left = X + "px";
             object.object.style.top = Y + "px";
-        
+
             object.updater((obj) => {
-                obj.position["X"] = X;
-                obj.position["Y"] = Y;
-                obj.direction = direction;
+                obj.definers.position["X"] = X;
+                obj.definers.position["Y"] = Y;
+                obj.direction = directionVector;
                 return obj;
             });
-        
+
             if (progress < fortime) {
                 requestAnimationFrame(animate);
             } else {
-                let left = Math.round(X);
-                let top = Math.round(Y);
-                callback(left, top);
+                callback(Math.round(X), Math.round(Y));
             }
         }
         requestAnimationFrame(animate);
     }
 };
+
+class Plane {
+    constructor() {
+        this.gravity = false;
+        return useState(""); // return [plane, setPlane, planeID]
+
+    }
+    // Now the locas will be predetermined until an event occures, at the time of event all the calculation will take place once again.
+    gravity() {
+        this.gravity = true;
+    }
+}
+
+class Setup {
+    constructor(plane) {
+        this.objects = [];
+        if (!plane) {
+            throw new Error("Set constructor requires one plane to work with.");
+        }
+        let [_plane, setPlane, planeID] = plane;
+        this._plane = _plane;
+        this.setPlane = setPlane;
+        this.planeID = planeID;
+    }
+    defineObjects(...objs) {
+        if (!objs) {
+            throw new Error("defineObjects require atleat one object to work with. Please reffer its docs:", docs);
+        }
+        this.objects = objs;
+    }
+    initialise(fn = () => { }) {
+        if (!this._plane || !this.objects) {
+            throw new Error("Set can't be initialised before defining objects, please reffer its docs:", docs);
+        }
+        fn(this.objects);
+    }
+}
+
+let plane = new Plane();
+let set = new Setup(plane);
+
+// set.defineObjects(obj1, obj2);
+// set.initialise(([obj1, obj2])=>{
+
+// });
