@@ -277,7 +277,7 @@ Watch the red ball move!
 
 ## ✅ Author Notes
 
-Built by Baltej Singh (Bavi) as a creative physics visualizer and animation system. It started as a deep dive into vector logic and evolved into a full-blown DOM physics engine.
+Built by Baltej Singh as a creative physics visualizer and animation system. It started as a deep dive into vector logic and evolved into a full-blown DOM physics engine.
 
 Happy hacking!
 
